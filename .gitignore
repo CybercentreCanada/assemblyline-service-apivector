@@ -1,0 +1,15 @@
+# Add any directories, files, or patterns you don't want to be tracked by version control
+*.py[cod]
+.pydevproject
+.idea
+dist
+*.egg-info
+
+ehthumbs.db
+Thumbs.db
+
+\.vscode/
+
+*.malpedia_apivector_list.csv
+
+malpediaclient/config\.py
