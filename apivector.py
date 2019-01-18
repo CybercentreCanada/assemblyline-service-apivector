@@ -16,6 +16,17 @@ class ApiVector(ServiceBase):
     SERVICE_CPU_CORES = 1
     SERVICE_CPU_RAM = 256
 
+    SERVICE_DEFAULT_CONFIG = {
+        # "malpedia_user": "",
+        # "malpedia_pass": "",
+        # remote path on support server holding apiscout DBs from VMs used to generate
+        # memory dumps
+        "apiscout_remote_path": "apiscout",
+
+        # path to apivector DBs to compare against on the support server
+        "apivector_remote_path": "apivector"
+    }
+
     def __init__(self, cfg=None):
         super(ApiVector, self).__init__(cfg)
 
@@ -94,6 +105,14 @@ class ApiVector(ServiceBase):
         return results
 
     def execute(self, request):
+
+        # Check to see what VM generated this
+        # also, this is a kind of file type checker - we don't have a good way to ID
+        # memory dumps
+        if "cuckoo_vm" not in self.submission_tags:
+            request.drop()
+            return
+
         self.update_paths()
 
         path = request.download()
