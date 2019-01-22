@@ -2,12 +2,44 @@
 
 Initial work for this done during GeekWeek 5 (https://gitlab.com/GeekWeekV/4.2_malfinder/alsvc_apivector)
 
-See https://github.com/danielplohmann/apiscout and http://byte-atlas.blogspot.com/2017/04/apiscout.html
-for technical details.
+See the following links for technical details:
+
+* Academic paper describing ApiScout/ApiVectors and results when applied to the malpedia dataset - https://journal.cecyf.fr/ojs/index.php/cybin/article/view/20
+* Code on GitHub - https://github.com/danielplohmann/apiscout
+* Blog post - http://byte-atlas.blogspot.com/2017/04/apiscout.html
 
 ## Service Configuration
 
+The following service configuration options are available:
 
+    # Can be configured to use malpedia directly, or pull down multiple databases from the support server
+    "malpedia_apikey": "",
+
+    # remote path on support server holding apiscout DBs from VMs used to generate
+    # memory dumps
+    "apiscout_dbs_remote_path": "apiscout",
+
+    # The apiscout DBs to download and use. There should be one for each VM you have generating process memory dumps
+    "apiscout_dbs": [],
+
+    # path to apivector DBs to compare against on the support server
+    "apivector_lists_remote_path": "apivector_lists",
+
+    # The apivector DBs to retrieve from the support server
+    "apivector_lists": [],
+
+    # Parameters for matching apivector
+    # minimum confidence in the apivector to do anything with it
+    "min_confidence": 50,
+    # min jaccard score to report as implant family
+    # from https://journal.cecyf.fr/ojs/index.php/cybin/article/view/2 , you can set this depending on your 
+    # tolerance for false positives.
+    # Even if set very high, FPs are still possible for samples that share a lot of statically linked code
+    # * 0.18 leads to a TPR/FPR of 90.18% and 9.45%
+    # * 0.22 leads to a TPR/FPR of 89.10% and 4.74% (closest distance to the (0,1) point)
+    # * 0.32 leads to a TPR/FPR of 86.55% and 0.99%
+    # * 0.55 leads to a TPR/FPR of 80.72% and 0.09%
+    "min_jaccard": 0.40
 
 ### ApiScout Database Generation
 

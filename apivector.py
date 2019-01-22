@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os, glob
+import logging
 from assemblyline.al.common.result import Result, ResultSection, SCORE, Classification, Tag, TAG_TYPE, TAG_WEIGHT
 from assemblyline.common.context import Context
 from assemblyline.al.service.base import ServiceBase, Category, UpdaterFrequency, UpdaterType
@@ -35,7 +36,20 @@ class ApiVector(ServiceBase):
         "apivector_lists_remote_path": "apivector_lists",
 
         # The apivector DBs to retrieve from the support server
-        "apivector_lists": []
+        "apivector_lists": [],
+
+        # Parameters for matching apivector
+        # minimum confidence in the apivector to do anything with it
+        "min_confidence": 50,
+        # min jaccard score to report as implant family
+        # from https://journal.cecyf.fr/ojs/index.php/cybin/article/view/2 , you can set this depending on your
+        # tolerance for false positives.
+        # Even if set very high, FPs are still possible for samples that share a lot of statically linked code
+        # * 0.18 leads to a TPR/FPR of 90.18% and 9.45%
+        # * 0.22 leads to a TPR/FPR of 89.10% and 4.74% (closest distance to the (0,1) point)
+        # * 0.32 leads to a TPR/FPR of 86.55% and 0.99%
+        # * 0.55 leads to a TPR/FPR of 80.72% and 0.09%
+        "min_jaccard": 0.40
     }
 
     def __init__(self, cfg=None):
@@ -46,6 +60,7 @@ class ApiVector(ServiceBase):
 
     # noinspection PyUnresolvedReferences
     def import_service_deps(self):
+
         global ApiScout, ApiVector, apiscout
         from apiscout.ApiScout import ApiScout
         from apiscout.ApiVector import ApiVector
@@ -102,8 +117,6 @@ class ApiVector(ServiceBase):
         log = self.log.getChild("svc_updater")
 
         sp_filestore = forge.get_support_filestore()
-        import pprint
-        self.log.info("Running with config: %s" % pprint.pformat(self.cfg))
 
         for remote_dir, remote_files, local_dir in [(
             self.cfg.get("apiscout_dbs_remote_path"), self.cfg.get("apiscout_dbs"), self.local_db_path),
@@ -204,13 +217,14 @@ class ApiVector(ServiceBase):
             # get a list of all the specific matches
             # We only care about providing these matches if the confidence is above some
             # threshold
-            if matches['confidence'] > 50:
+            if matches['confidence'] > self.cfg.get("min_confidence"):
                 m_section = ResultSection(title_text='Matches')
+                m_section.add_line("(family, sample information, jaccard similarity)")
                 # only provide the top ten matches
                 matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']][:10]
 
                 for family, sample, jaccard_score in matches["match_results"]:
-                    if jaccard_score > 0.75:
+                    if jaccard_score > self.cfg.get("min_jaccard"):
                         # report the family as implant family
                         request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family)
 
