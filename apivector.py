@@ -76,8 +76,7 @@ class ApiVector(ServiceBase):
         global requests
         import requests
         # Make sure the updater gets called at svc init so we have the latest data
-        # TODO - uncomment for prod
-        #self._svc_updater()
+        self._svc_updater()
 
     def start(self):
         self.log.debug("apivector service started")
