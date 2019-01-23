@@ -163,6 +163,7 @@ class ApiVector(ServiceBase):
         # Check to see what VM generated this
         # also, this is a kind of file type checker - we don't have a good way to ID
         # memory dumps
+        self.log.info("submission tags: %s" % str(self.submission_tags))
         vm_name = self.submission_tags.get("vm_name",
                                            request.task.submission["metadata"].get("vm_name"))
         if not vm_name:
