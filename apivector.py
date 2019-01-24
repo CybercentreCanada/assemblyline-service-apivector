@@ -20,6 +20,9 @@ class ApiVector(ServiceBase):
     SERVICE_CPU_CORES = 1
     SERVICE_CPU_RAM = 256
 
+    # larger memory dumps may take longer to scan
+    SERVICE_TIMEOUT = 120
+
     SERVICE_DEFAULT_CONFIG = {
 
         # Can be configured to use malpedia directly, or pull down multiple databases from the support server
@@ -163,7 +166,7 @@ class ApiVector(ServiceBase):
         # Check to see what VM generated this
         # also, this is a kind of file type checker - we don't have a good way to ID
         # memory dumps
-        self.log.info("submission tags: %s" % str(self.submission_tags))
+        #self.log.info("submission tags for %s: %s" % (request.task.get_submission_tags_name(), str(self.submission_tags)))
         vm_name = self.submission_tags.get("vm_name",
                                            request.task.submission["metadata"].get("vm_name"))
         if not vm_name:
