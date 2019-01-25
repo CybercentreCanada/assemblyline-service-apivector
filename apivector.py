@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
 import os, glob
+import logging
 from assemblyline.al.common.result import Result, ResultSection, SCORE, Classification, Tag, TAG_TYPE, TAG_WEIGHT
-from assemblyline.al.service.base import ServiceBase, Category
+from assemblyline.common.context import Context
+from assemblyline.al.service.base import ServiceBase, Category, UpdaterFrequency, UpdaterType
 from assemblyline.common.exceptions import RecoverableError
+import traceback
+from assemblyline.al.common import forge
 
 
 class ApiVector(ServiceBase):
@@ -16,72 +20,140 @@ class ApiVector(ServiceBase):
     SERVICE_CPU_CORES = 1
     SERVICE_CPU_RAM = 256
 
+    # larger memory dumps may take longer to scan
+    SERVICE_TIMEOUT = 120
+
+    SERVICE_DEFAULT_CONFIG = {
+
+        # Can be configured to use malpedia directly, or pull down multiple databases from the support server
+        "malpedia_apikey": "",
+
+        # remote path on support server holding apiscout DBs from VMs used to generate
+        # memory dumps
+        "apiscout_dbs_remote_path": "apiscout",
+
+        # The apiscout DBs to download and use. There should be one for each VM you have generating process memory dumps
+        "apiscout_dbs": [],
+
+        # Default apiscout DB. If this value is set, then we will apply this to anything with the windows/executable/* tag type
+        # Otherwise we will only process files that have 'vm_name' set in submission tag or submission metadata
+        "default_db": "",
+
+        # path to apivector DBs to compare against on the support server
+        "apivector_lists_remote_path": "apivector_lists",
+
+        # The apivector DBs to retrieve from the support server
+        "apivector_lists": [],
+
+        # Parameters for matching apivector
+        # minimum confidence in the apivector to do anything with it
+        "min_confidence": 50,
+        # min jaccard score to report as implant family
+        # from https://journal.cecyf.fr/ojs/index.php/cybin/article/view/2 , you can set this depending on your
+        # tolerance for false positives.
+        # Even if set very high, FPs are still possible for samples that share a lot of statically linked code
+        # * 0.18 leads to a TPR/FPR of 90.18% and 9.45%
+        # * 0.22 leads to a TPR/FPR of 89.10% and 4.74% (closest distance to the (0,1) point)
+        # * 0.32 leads to a TPR/FPR of 86.55% and 0.99%
+        # * 0.55 leads to a TPR/FPR of 80.72% and 0.09%
+        "min_jaccard": 0.40
+    }
+
     def __init__(self, cfg=None):
+        config = forge.get_config()
+        self.local_db_path = os.path.join(config.system.root, "apivector", "db")
+        self.local_list_path = os.path.join(config.system.root, "apivector", "lists")
         super(ApiVector, self).__init__(cfg)
 
     # noinspection PyUnresolvedReferences
     def import_service_deps(self):
-        global ApiScout
+
+        global ApiScout, ApiVector, apiscout
         from apiscout.ApiScout import ApiScout
-        
-        global ApiVector
         from apiscout.ApiVector import ApiVector
+        import apiscout
 
-        global MalpediaClient
-        from malpediaclient.client import Client as MalpediaClient
+        global requests
+        import requests
 
-        # You must create a config.py file based on the config.template.py file and put your api credentials in it.
-        global MALPEDIA_USER, MALPEDIA_APIKEY
-        from malpediaclient.config import MALPEDIA_USER, MALPEDIA_APIKEY
-        
+    def sysprep(self):
+        for d in [self.local_db_path, self.local_list_path]:
+            if not os.path.exists(d):
+                os.makedirs(d)
+        global requests
+        import requests
+        # Make sure the updater gets called at svc init so we have the latest data
+        self._svc_updater()
+
     def start(self):
         self.log.debug("apivector service started")
 
-    def update_paths(self):
-        self.basepath = os.path.dirname(os.path.realpath(__file__))
-        self.datapath = os.path.join(self.basepath, "apiscout", "data")
+        self._register_update_callback(self._svc_updater, execute_now=False,
+                                       blocking=False,
+                                       utype=UpdaterType.BOX,
+                                       freq=UpdaterFrequency.DAY)
 
-        self.apiscout_profile_path = os.path.join(self.basepath, "apiscout", "dbs", "win7_sp1_x64_vector.json")
-        self.log.info("Using apiscout profile file: {}".format(self.apiscout_profile_path))
-        if not os.path.exists(self.apiscout_profile_path) or not os.path.isfile(self.apiscout_profile_path):
-            self.log.error("There appears to be something wrong with the apiscout profile file: {}".format(self.apiscout_profile_path))
-
-        self.update_malpedia_apivector_list()
-        self.log.info("Using apivector list file: {}".format(self.apivector_list_path))
-        if not os.path.exists(self.apivector_list_path) or not os.path.isfile(self.apivector_list_path):
-            self.log.error("There appears to be something wrong with the apivector list file: {}".format(self.apivector_list_path))
-
-        self.winapi1024_path = os.path.join(self.datapath, "winapi1024v1.txt")
-        self.log.info("Using apivector file: {}".format(self.winapi1024_path))
-        if not os.path.exists(self.winapi1024_path) or not os.path.isfile(self.winapi1024_path):
-            self.log.error("There appears to be something wrong with the apivector file definition: {}".format(self.winapi1024_path))
-
+        module_path = os.path.dirname(os.path.realpath(apiscout.__file__))
+        self.winapi1024_path = os.sep.join([module_path, "data", "winapi1024v1.txt"])
 
     def update_malpedia_apivector_list(self):
-        malpedia_client = MalpediaClient(MALPEDIA_USER, MALPEDIA_APIKEY)
+        log = self.log.getChild("malpedia_update")
+        if len(self.cfg.get("malpedia_apikey")) > 0:
+            update_url = "https://malpedia.caad.fkie.fraunhofer.de/api/list/apiscout/csv"
+            log.info("Making requeest to get latest apiscout csv from malpedia %s..." % update_url)
+            try:
+                malpedia_req = requests.get(update_url,
+                                            headers={"Authorization": "apitoken %s" % self.cfg.get("malpedia_apikey")})
+            except:
+                self.log.error("Error getting malpedia data. Traceback: %s" % traceback.format_exc())
+                return
 
-        newest_malpedia_version = str(malpedia_client.get_version()['version'])
-        # remove all other malpedia versions
-        for old_apivector_list in glob.glob(os.path.join(self.datapath, "*.malpedia_apivector_list.csv")):
-            if not os.path.basename(old_apivector_list).startswith(newest_malpedia_version):
-                os.remove(old_apivector_list)
+            # Make sure we actaully have content
+            if len(malpedia_req.content) < 20:
+                self.log.error("Return from malpedia was very small, there was probably an error")
+                return
 
-        self.apivector_list_path = os.path.join(self.datapath, "{}.malpedia_apivector_list.csv".format(newest_malpedia_version))
+            malpedia_path = os.path.join(self.local_list_path, "malpedia.csv")
+            log.info("Writing output to %s" % malpedia_path)
+            with open(malpedia_path, "w") as fh:
+                fh.write(malpedia_req.content)
 
-        if not os.path.exists(self.apivector_list_path) and not os.path.isfile(self.apivector_list_path):
-            newest_malpedia_info = malpedia_client.list_apiscout_csv()
-            new_malpedia_file = open(self.apivector_list_path, 'w')
-            new_malpedia_file.write(newest_malpedia_info)
-            new_malpedia_file.close()
+    def _svc_updater(self):
 
-    def extract_vector(self, memory_dump, apiscout_profile_path, winapi1024_path):
+        log = self.log.getChild("svc_updater")
+
+        sp_filestore = forge.get_support_filestore()
+
+        for remote_dir, remote_files, local_dir in [(
+            self.cfg.get("apiscout_dbs_remote_path"), self.cfg.get("apiscout_dbs"), self.local_db_path),
+             (self.cfg.get("apivector_lists_remote_path"), self.cfg.get("apivector_lists"), self.local_list_path)]:
+
+            log.info("Working on %s" % remote_dir)
+            for f in remote_files:
+                log.info("Downloading %s/%s" % (remote_dir, f))
+                sp_filestore.download(os.path.join(remote_dir, f), os.path.join(local_dir, f + ".tmp"))
+                os.rename(os.path.join(local_dir, f + ".tmp"), os.path.join(local_dir, f))
+
+            # Make sure these are the only files held locally
+            local_files = os.listdir(local_dir)
+            valid_files = remote_files + ["malpedia.csv"]
+            for local_file in local_files:
+                if local_file not in valid_files:
+                    os.unlink(os.path.join(local_dir, local_file))
+
+        self.update_malpedia_apivector_list()
+
+    def extract_vector(self, memory_dump, apiscout_profile_path):
+
         scout = ApiScout()
         scout.loadDbFile(apiscout_profile_path)
         # TODO depends on setup that produces memory dumps
         scout.ignoreAslrOffsets(True)
         # TODO potentially change this path
-        scout.loadWinApi1024(winapi1024_path)
+        scout.loadWinApi1024(self.winapi1024_path)
+        self.log.debug("crawling memdump...")
         results = scout.crawl(memory_dump)
+        self.log.debug("... done crawling memdump")
         # experience tells that neighborhood filter of 32 produces good results
         filtered_results = scout.filter(results, 0, 0, 32)
         all_vectors = scout.getWinApi1024Vectors(filtered_results)
@@ -94,30 +166,80 @@ class ApiVector(ServiceBase):
         return results
 
     def execute(self, request):
-        self.update_paths()
 
-        path = request.download()
-        with open(path, 'r') as f:
-            memory_dump = f.read()
+        # Check to see what VM generated this
+        # also, this is a kind of file type checker - we don't have a good way to ID
+        # memory dumps
+        #self.log.info("submission tags for %s: %s" % (request.task.get_submission_tags_name(), str(self.submission_tags)))
+        vm_name = self.submission_tags.get("vm_name",
+                                           request.task.submission["metadata"].get("vm_name"))
+
+        if request.tag.startswith("executable/windows"):
+            vm_name = self.cfg.get("default_db").replace(".json", "")
+
+        if not vm_name:
+            request.drop()
+            return
+
+        # Make sure we have a profile to work with
+        apiscout_profile = os.path.join(self.local_db_path, vm_name + ".json")
+        if not os.path.exists(apiscout_profile):
+            self.log.warning("No apiscout profile found for %s. Can't proceed with analysis" % vm_name)
+            request.drop()
+            return
+
+        memory_dump = request.get()
 
         request.result = Result()
-        
-        vector_info = self.extract_vector(memory_dump, self.apiscout_profile_path, self.winapi1024_path)
-        vector = vector_info[1]["vector"]
-        matches = self.match_vector(vector, self.apivector_list_path)
-    
-        r_section = ResultSection(title_text='ApiVector matches')
-        r_section.score = SCORE.NULL
-        r_section.add_line('Vector: {}'.format(matches['vector']))
-        r_section.add_line('Confidence: {}'.format(matches['confidence']))
-        r_section.add_line('Collection Filepath: {}'.format(matches['collection_filepath']))
-        r_section.add_line('Families in Collection: {}'.format(matches['families_in_collection']))
-        r_section.add_line('Vectors in Collection: {}'.format(matches['vectors_in_collection']))
-        m_section = ResultSection(title_text='Matches')
-        # ouch oof owie my bones
-        matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']]
 
-        m_section.add_lines(matches_str_list)
-        r_section.add_section(m_section)
-   
-        request.result.add_section(r_section)
+        self.log.debug("Extracting vector..")
+        vector_info = self.extract_vector(memory_dump, apiscout_profile)
+        self.log.debug("Done extracting vector from memdump")
+        vector = vector_info[1]["vector"]
+        apivector_str = "%d:%d:%s" % (
+            vector_info[1].get("in_api_vector", 0),
+            vector_info[1].get("num_unique_apis", 0),
+            vector_info[1].get("vector", "")
+        )
+        # self.log.info("got apivector str: %s" % apivector_str)
+        request.result.add_tag(TAG_TYPE.PE_APIVECTOR, apivector_str, context=Context.DYNAMIC)
+
+
+        csv_list = os.listdir(self.local_list_path)
+        for apiscout_csv in [x for x in csv_list if x.endswith(".csv")]:
+            self.log.debug("Checking for matches...")
+            # see https://github.com/danielplohmann/apiscout/blob/master/apiscout/ApiVector.py#L205
+            # for details on what match_vector returns
+            # the "match_results" key  returns a list of tuples in format:
+            #   (family, sample, jaccard_index_percentage_match)
+            matches = self.match_vector(vector, os.path.join(self.local_list_path, apiscout_csv))
+            self.log.debug("done checking for matches")
+
+            r_section = ResultSection(title_text='ApiVector Information')
+            r_section.score = SCORE.NULL
+            r_section.add_line('Vector: {}'.format(matches['vector']))
+            # confidence is calculated based on APIs less common than top75 and total number of APIs in the vector
+            r_section.add_line('Confidence: {}'.format(matches['confidence']))
+            r_section.add_line('Collection Filepath: {}'.format(matches['collection_filepath']))
+            r_section.add_line('Families in Collection: {}'.format(matches['families_in_collection']))
+            r_section.add_line('Vectors in Collection: {}'.format(matches['vectors_in_collection']))
+
+
+            # get a list of all the specific matches
+            # We only care about providing these matches if the confidence is above some
+            # threshold
+            if matches['confidence'] > self.cfg.get("min_confidence"):
+                m_section = ResultSection(title_text='Matches')
+                m_section.add_line("(family, sample information, jaccard similarity)")
+                # only provide the top ten matches
+                matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']][:10]
+
+                for family, sample, jaccard_score in matches["match_results"]:
+                    if jaccard_score > self.cfg.get("min_jaccard"):
+                        # report the family as implant family. Make use of tag weight
+                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100))
+
+                m_section.add_lines(matches_str_list)
+                r_section.add_section(m_section)
+
+            request.result.add_section(r_section)
