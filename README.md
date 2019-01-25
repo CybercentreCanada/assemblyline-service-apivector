@@ -2,6 +2,8 @@
 
 [ApiScout](https://github.com/danielplohmann/apiscout) uses process memory dumps to attempt to recover common Windows 
 API calls and then builds a representation of them called an ApiVector. 
+
+It is installed by default but requires some additional configuration before enabling within AssemblyLine.
  
 Initial work for this was done during GeekWeek 5 (https://gitlab.com/GeekWeekV/4.2_malfinder/alsvc_apivector)
 
