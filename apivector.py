@@ -20,6 +20,9 @@ class ApiVector(ServiceBase):
     SERVICE_CPU_CORES = 1
     SERVICE_CPU_RAM = 256
 
+    # larger memory dumps may take longer to scan
+    SERVICE_TIMEOUT = 120
+
     SERVICE_DEFAULT_CONFIG = {
 
         # Can be configured to use malpedia directly, or pull down multiple databases from the support server
@@ -31,6 +34,10 @@ class ApiVector(ServiceBase):
 
         # The apiscout DBs to download and use. There should be one for each VM you have generating process memory dumps
         "apiscout_dbs": [],
+
+        # Default apiscout DB. If this value is set, then we will apply this to anything with the windows/executable/* tag type
+        # Otherwise we will only process files that have 'vm_name' set in submission tag or submission metadata
+        "default_db": "",
 
         # path to apivector DBs to compare against on the support server
         "apivector_lists_remote_path": "apivector_lists",
@@ -163,8 +170,13 @@ class ApiVector(ServiceBase):
         # Check to see what VM generated this
         # also, this is a kind of file type checker - we don't have a good way to ID
         # memory dumps
+        #self.log.info("submission tags for %s: %s" % (request.task.get_submission_tags_name(), str(self.submission_tags)))
         vm_name = self.submission_tags.get("vm_name",
                                            request.task.submission["metadata"].get("vm_name"))
+
+        if request.tag.startswith("executable/windows"):
+            vm_name = self.cfg.get("default_db").replace(".json", "")
+
         if not vm_name:
             request.drop()
             return
@@ -224,8 +236,8 @@ class ApiVector(ServiceBase):
 
                 for family, sample, jaccard_score in matches["match_results"]:
                     if jaccard_score > self.cfg.get("min_jaccard"):
-                        # report the family as implant family
-                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family)
+                        # report the family as implant family. Make use of tag weight
+                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100))
 
                 m_section.add_lines(matches_str_list)
                 r_section.add_section(m_section)
