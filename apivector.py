@@ -42,8 +42,10 @@ class ApiVector(ServiceBase):
         # path to apivector DBs to compare against on the support server
         "apivector_lists_remote_path": "apivector_lists",
 
-        # The apivector DBs to retrieve from the support server
-        "apivector_lists": [],
+        # The apivector DBs to retrieve from the support server.
+        # This is formatted as a dictionary so that you can add extra metadata about any custom/classified lists
+        # ie/ {"custom_list.csv": {"classification": "RESTRICTED"}}
+        "apivector_lists": {},
 
         # Parameters for matching apivector
         # minimum confidence in the apivector to do anything with it
@@ -60,10 +62,14 @@ class ApiVector(ServiceBase):
     }
 
     def __init__(self, cfg=None):
+
+        super(ApiVector, self).__init__(cfg)
+
         config = forge.get_config()
         self.local_db_path = os.path.join(config.system.root, "apivector", "db")
         self.local_list_path = os.path.join(config.system.root, "apivector", "lists")
-        super(ApiVector, self).__init__(cfg)
+
+        self.apivector_lists = {}
 
     # noinspection PyUnresolvedReferences
     def import_service_deps(self):
@@ -96,6 +102,15 @@ class ApiVector(ServiceBase):
         module_path = os.path.dirname(os.path.realpath(apiscout.__file__))
         self.winapi1024_path = os.sep.join([module_path, "data", "winapi1024v1.txt"])
 
+        self.apivector_lists = self.cfg.get("apivector_lists", {})
+
+        if len(self.cfg.get("malpedia_apikey")) > 0:
+            # Add malpedia to the apivector_lists dict if we have an apikey configured
+            self.apivector_lists["malpedia.csv"] = {"classification": "U"}
+
+        # init this object once
+        self.apivector_obj = ApiVector(self.winapi1024_path)
+
     def update_malpedia_apivector_list(self):
         log = self.log.getChild("malpedia_update")
         if len(self.cfg.get("malpedia_apikey")) > 0:
@@ -118,6 +133,8 @@ class ApiVector(ServiceBase):
             with open(malpedia_path, "w") as fh:
                 fh.write(malpedia_req.content)
 
+
+
     def _svc_updater(self):
 
         log = self.log.getChild("svc_updater")
@@ -126,7 +143,7 @@ class ApiVector(ServiceBase):
 
         for remote_dir, remote_files, local_dir in [(
             self.cfg.get("apiscout_dbs_remote_path"), self.cfg.get("apiscout_dbs"), self.local_db_path),
-             (self.cfg.get("apivector_lists_remote_path"), self.cfg.get("apivector_lists"), self.local_list_path)]:
+             (self.cfg.get("apivector_lists_remote_path"), self.cfg.get("apivector_lists").keys(), self.local_list_path)]:
 
             log.info("Working on %s" % remote_dir)
             for f in remote_files:
@@ -160,10 +177,6 @@ class ApiVector(ServiceBase):
         primary_vector = scout.getPrimaryVector(all_vectors)
         return primary_vector
 
-    def match_vector(self, vector, collection):
-        apivector = ApiVector(self.winapi1024_path)
-        results = apivector.matchVectorCollection(vector, collection)
-        return results
 
     def execute(self, request):
 
@@ -195,31 +208,42 @@ class ApiVector(ServiceBase):
         self.log.debug("Extracting vector..")
         vector_info = self.extract_vector(memory_dump, apiscout_profile)
         self.log.debug("Done extracting vector from memdump")
-        vector = vector_info[1]["vector"]
+        vector_raw = vector_info[1]["vector"]
         apivector_str = "%d:%d:%s" % (
             vector_info[1].get("in_api_vector", 0),
             vector_info[1].get("num_unique_apis", 0),
             vector_info[1].get("vector", "")
         )
         # self.log.info("got apivector str: %s" % apivector_str)
-        request.result.add_tag(TAG_TYPE.PE_APIVECTOR, apivector_str, context=Context.DYNAMIC)
+        # confidence is calculated based on APIs less common than top75 and total number of APIs in the vector
+        vector_confidence = self.apivector_obj.getVectorConfidence(vector_raw)
 
+        # Use the confidence as a weight on the tag
+        request.result.add_tag(TAG_TYPE.PE_APIVECTOR, apivector_str, context=Context.DYNAMIC, weight=int(vector_confidence))
 
-        csv_list = os.listdir(self.local_list_path)
-        for apiscout_csv in [x for x in csv_list if x.endswith(".csv")]:
-            self.log.debug("Checking for matches...")
+        # csv_list = os.listdir(self.local_list_path)
+        overview_section = ResultSection(title_text='ApiVector Information')
+        overview_section.score = SCORE.NULL
+        overview_section.add_line('Vector: {}'.format(vector_raw))
+        overview_section.add_line('Confidence: {}'.format(vector_confidence))
+        request.result.add_section(overview_section)
+
+        self.log.info("Using apivector lists: %s" % str(self.apivector_lists))
+
+        for apivector_csv, apivector_meta in self.apivector_lists.iteritems():
+            csv_path = os.path.join(self.local_list_path, apivector_csv)
+            classification = apivector_meta.get("classification", "U")
+            self.log.debug("Checking for matches against %s..." % apivector_csv)
             # see https://github.com/danielplohmann/apiscout/blob/master/apiscout/ApiVector.py#L205
             # for details on what match_vector returns
             # the "match_results" key  returns a list of tuples in format:
             #   (family, sample, jaccard_index_percentage_match)
-            matches = self.match_vector(vector, os.path.join(self.local_list_path, apiscout_csv))
+            matches = self.apivector_obj.matchVectorCollection(vector_raw, csv_path)
             self.log.debug("done checking for matches")
 
-            r_section = ResultSection(title_text='ApiVector Information')
+            r_section = ResultSection(title_text='ApiVector Collection Information', classification=classification)
             r_section.score = SCORE.NULL
-            r_section.add_line('Vector: {}'.format(matches['vector']))
-            # confidence is calculated based on APIs less common than top75 and total number of APIs in the vector
-            r_section.add_line('Confidence: {}'.format(matches['confidence']))
+
             r_section.add_line('Collection Filepath: {}'.format(matches['collection_filepath']))
             r_section.add_line('Families in Collection: {}'.format(matches['families_in_collection']))
             r_section.add_line('Vectors in Collection: {}'.format(matches['vectors_in_collection']))
@@ -229,7 +253,7 @@ class ApiVector(ServiceBase):
             # We only care about providing these matches if the confidence is above some
             # threshold
             if matches['confidence'] > self.cfg.get("min_confidence"):
-                m_section = ResultSection(title_text='Matches')
+                m_section = ResultSection(title_text='Matches', classification=classification)
                 m_section.add_line("(family, sample information, jaccard similarity)")
                 # only provide the top ten matches
                 matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']][:10]
@@ -237,7 +261,9 @@ class ApiVector(ServiceBase):
                 for family, sample, jaccard_score in matches["match_results"]:
                     if jaccard_score > self.cfg.get("min_jaccard"):
                         # report the family as implant family. Make use of tag weight
-                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100))
+                        m_section.score = SCORE.VHIGH
+                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100),
+                                               classification=classification)
 
                 m_section.add_lines(matches_str_list)
                 r_section.add_section(m_section)
