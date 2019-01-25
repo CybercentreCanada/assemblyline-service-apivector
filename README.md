@@ -93,3 +93,11 @@ assuming your VM is named `inetsim_win7`, copy the generated database file to `/
 You'll also have to let the ApiVector service know by adding the filename to `apiscout_dbs` service configuration parameter 
 (avatar -> Services -> ApiVector)
 
+
+# Interpreting Results From Cuckoo Process Memory Dumps
+
+The code responsible for making the process dumps (.dmp file) from within Cuckoo appears to be here: https://github.com/cuckoosandbox/monitor/blob/7c5854fae12e1f01f56eab2db4008148c790cc7a/bin/inject.c#L447
+
+Cuckoo also has a process memory dump processing module that will attempt to extract EXEs from the raw dump: https://github.com/cuckoosandbox/cuckoo/blob/master/cuckoo/processing/procmemory.py#L80
+
+Based on initial testing, the most accurate matches with malpedia's database of ApiVectors comes from the latter - extracted EXE files.
