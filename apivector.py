@@ -12,6 +12,10 @@ from assemblyline.al.common import forge
 
 class ApiVector(ServiceBase):
     SERVICE_CATEGORY = Category.STATIC_ANALYSIS
+
+    # run this service in the 'secondary' stage so we can example any apivector tags applied by
+    # other services - namely pefile
+    SERVICE_STAGE = 'SECONDARY'
     SERVICE_ACCEPTS = '.*'
     SERVICE_REVISION = ServiceBase.parse_revision('$Id$')
     SERVICE_VERSION = '1'
@@ -133,8 +137,6 @@ class ApiVector(ServiceBase):
             with open(malpedia_path, "w") as fh:
                 fh.write(malpedia_req.content)
 
-
-
     def _svc_updater(self):
 
         log = self.log.getChild("svc_updater")
@@ -177,7 +179,6 @@ class ApiVector(ServiceBase):
         primary_vector = scout.getPrimaryVector(all_vectors)
         return primary_vector
 
-
     def execute(self, request):
 
         # Check to see what VM generated this
@@ -190,82 +191,104 @@ class ApiVector(ServiceBase):
         if request.tag.startswith("executable/windows"):
             vm_name = self.cfg.get("default_db").replace(".json", "")
 
-        if not vm_name:
-            request.drop()
-            return
+        raw_vectors = []
 
-        # Make sure we have a profile to work with
-        apiscout_profile = os.path.join(self.local_db_path, vm_name + ".json")
-        if not os.path.exists(apiscout_profile):
-            self.log.warning("No apiscout profile found for %s. Can't proceed with analysis" % vm_name)
-            request.drop()
-            return
+        # Check for any existing APIVECTOR tags and compare against the collection
+        # This is one thing that *may* make more sense to put into a tagcheck callback,
+        # but I'm putting it here for now because it relies on pulling in updated malpedia
+        # (or other apivector collections)
+        existing_tags = request.get_tags()
+        for t in existing_tags:
+            if t["type"] == "PE_APIVECTOR":
+                _raw_vector = t["value"].split(":")[2]
+                if _raw_vector not in raw_vectors:
+                    raw_vectors.append(_raw_vector)
 
-        memory_dump = request.get()
+        # init the result object if any apivector tags are found
+        if len(raw_vectors) > 0:
+            request.result = Result()
 
-        request.result = Result()
+        # Check to see if a 'vm_name' is assigned, which indicates we should try and extract a apivector
+        # from this file
+        if vm_name:
+            # Make sure we have a profile to work with
+            apiscout_profile = os.path.join(self.local_db_path, vm_name + ".json")
+            if os.path.exists(apiscout_profile):
 
-        self.log.debug("Extracting vector..")
-        vector_info = self.extract_vector(memory_dump, apiscout_profile)
-        self.log.debug("Done extracting vector from memdump")
-        vector_raw = vector_info[1]["vector"]
-        apivector_str = "%d:%d:%s" % (
-            vector_info[1].get("in_api_vector", 0),
-            vector_info[1].get("num_unique_apis", 0),
-            vector_info[1].get("vector", "")
-        )
-        # self.log.info("got apivector str: %s" % apivector_str)
-        # confidence is calculated based on APIs less common than top75 and total number of APIs in the vector
-        vector_confidence = self.apivector_obj.getVectorConfidence(vector_raw)
+                memory_dump = request.get()
 
-        # Use the confidence as a weight on the tag
-        request.result.add_tag(TAG_TYPE.PE_APIVECTOR, apivector_str, context=Context.DYNAMIC, weight=int(vector_confidence))
+                request.result = Result()
+
+                self.log.debug("Extracting vector..")
+                vector_info = self.extract_vector(memory_dump, apiscout_profile)
+                self.log.debug("Done extracting vector from memdump")
+                _raw_vector = vector_info[1]["vector"]
+                if _raw_vector not in raw_vectors:
+                    raw_vectors.append(_raw_vector)
+
+                apivector_str = "%d:%d:%s" % (
+                    vector_info[1].get("in_api_vector", 0),
+                    vector_info[1].get("num_unique_apis", 0),
+                    vector_info[1].get("vector", "")
+                )
+
+                # self.log.info("got apivector str: %s" % apivector_str)
+                # confidence is calculated based on APIs less common than top75 and total number of APIs in the vector
+                vector_confidence = self.apivector_obj.getVectorConfidence(_raw_vector)
+
+                # Use the confidence as a weight on the tag
+                request.result.add_tag(TAG_TYPE.PE_APIVECTOR, apivector_str, context=Context.DYNAMIC, weight=int(vector_confidence))
+            else:
+                self.log.warning("No apiscout profile found for %s. Can't proceed with analysis" % vm_name)
+
 
         # csv_list = os.listdir(self.local_list_path)
-        overview_section = ResultSection(title_text='ApiVector Information')
-        overview_section.score = SCORE.NULL
-        overview_section.add_line('Vector: {}'.format(vector_raw))
-        overview_section.add_line('Confidence: {}'.format(vector_confidence))
-        request.result.add_section(overview_section)
+        for vector_raw in raw_vectors:
+            vector_confidence = self.apivector_obj.getVectorConfidence(vector_raw)
+            overview_section = ResultSection(title_text='ApiVector Information')
+            overview_section.score = SCORE.NULL
+            overview_section.add_line('Vector: {}'.format(vector_raw))
+            overview_section.add_line('Confidence: {}'.format(vector_confidence))
+            request.result.add_section(overview_section)
 
-        self.log.info("Using apivector lists: %s" % str(self.apivector_lists))
+            self.log.debug("Using apivector lists: %s" % str(self.apivector_lists))
 
-        for apivector_csv, apivector_meta in self.apivector_lists.iteritems():
-            csv_path = os.path.join(self.local_list_path, apivector_csv)
-            classification = apivector_meta.get("classification", "U")
-            self.log.debug("Checking for matches against %s..." % apivector_csv)
-            # see https://github.com/danielplohmann/apiscout/blob/master/apiscout/ApiVector.py#L205
-            # for details on what match_vector returns
-            # the "match_results" key  returns a list of tuples in format:
-            #   (family, sample, jaccard_index_percentage_match)
-            matches = self.apivector_obj.matchVectorCollection(vector_raw, csv_path)
-            self.log.debug("done checking for matches")
+            for apivector_csv, apivector_meta in self.apivector_lists.iteritems():
+                csv_path = os.path.join(self.local_list_path, apivector_csv)
+                classification = apivector_meta.get("classification", "U")
+                self.log.debug("Checking for matches against %s..." % apivector_csv)
+                # see https://github.com/danielplohmann/apiscout/blob/master/apiscout/ApiVector.py#L205
+                # for details on what match_vector returns
+                # the "match_results" key  returns a list of tuples in format:
+                #   (family, sample, jaccard_index_percentage_match)
+                matches = self.apivector_obj.matchVectorCollection(vector_raw, csv_path)
+                self.log.debug("done checking for matches")
 
-            r_section = ResultSection(title_text='ApiVector Collection Information', classification=classification)
-            r_section.score = SCORE.NULL
+                r_section = ResultSection(title_text='ApiVector Collection Information', classification=classification)
+                r_section.score = SCORE.NULL
 
-            r_section.add_line('Collection Filepath: {}'.format(matches['collection_filepath']))
-            r_section.add_line('Families in Collection: {}'.format(matches['families_in_collection']))
-            r_section.add_line('Vectors in Collection: {}'.format(matches['vectors_in_collection']))
+                r_section.add_line('Collection Filepath: {}'.format(matches['collection_filepath']))
+                r_section.add_line('Families in Collection: {}'.format(matches['families_in_collection']))
+                r_section.add_line('Vectors in Collection: {}'.format(matches['vectors_in_collection']))
 
 
-            # get a list of all the specific matches
-            # We only care about providing these matches if the confidence is above some
-            # threshold
-            if matches['confidence'] > self.cfg.get("min_confidence"):
-                m_section = ResultSection(title_text='Matches', classification=classification)
-                m_section.add_line("(family, sample information, jaccard similarity)")
-                # only provide the top ten matches
-                matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']][:10]
+                # get a list of all the specific matches
+                # We only care about providing these matches if the confidence is above some
+                # threshold
+                if matches['confidence'] > self.cfg.get("min_confidence"):
+                    m_section = ResultSection(title_text='Matches', classification=classification)
+                    m_section.add_line("(family, sample information, jaccard similarity)")
+                    # only provide the top ten matches
+                    matches_str_list = ["('{}')".format("', '".join(map(str, stuff))) for stuff in matches['match_results']][:10]
 
-                for family, sample, jaccard_score in matches["match_results"]:
-                    if jaccard_score > self.cfg.get("min_jaccard"):
-                        # report the family as implant family. Make use of tag weight
-                        m_section.change_score(SCORE.VHIGH)
-                        request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100),
-                                               classification=classification)
+                    for family, sample, jaccard_score in matches["match_results"]:
+                        if jaccard_score > self.cfg.get("min_jaccard"):
+                            # report the family as implant family. Make use of tag weight
+                            m_section.change_score(SCORE.VHIGH)
+                            request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100),
+                                                   classification=classification)
 
-                m_section.add_lines(matches_str_list)
-                r_section.add_section(m_section)
+                    m_section.add_lines(matches_str_list)
+                    r_section.add_section(m_section)
 
-            request.result.add_section(r_section)
+                request.result.add_section(r_section)
