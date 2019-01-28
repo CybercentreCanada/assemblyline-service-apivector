@@ -261,7 +261,7 @@ class ApiVector(ServiceBase):
                 for family, sample, jaccard_score in matches["match_results"]:
                     if jaccard_score > self.cfg.get("min_jaccard"):
                         # report the family as implant family. Make use of tag weight
-                        m_section.score = SCORE.VHIGH
+                        m_section.change_score(SCORE.VHIGH)
                         request.result.add_tag(TAG_TYPE.IMPLANT_FAMILY, family, weight=int(jaccard_score*100),
                                                classification=classification)
 
