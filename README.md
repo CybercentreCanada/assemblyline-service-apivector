@@ -2,6 +2,8 @@
 
 [ApiScout](https://github.com/danielplohmann/apiscout) uses process memory dumps to attempt to recover common Windows 
 API calls and then builds a representation of them called an ApiVector. 
+
+It is installed by default but requires some additional configuration before enabling within AssemblyLine.
  
 Initial work for this was done during GeekWeek 5 (https://gitlab.com/GeekWeekV/4.2_malfinder/alsvc_apivector)
 
@@ -26,6 +28,16 @@ See the following links for technical details:
                     
     # Or submission metadata (from command line)
     al-submit -u $AL_USER -p $AL_PASS -s $AL_SERVER -j '{"selected":["ApiVector"], "metadata": {"vm_name": "name_of_vm"}}' -i /path/to/procmemdum.dmp
+    
+
+To get the most out of the service, you should have a collection of apivectors you want to compare incoming data to. 
+You can request access to [Malpedia](https://malpedia.caad.fkie.fraunhofer.de/) and request an apikey from them, which this service can use
+to regularly pull updates from.
+
+Alternatively, you can generate your own, as long as you follow the format [here](https://github.com/danielplohmann/apiscout/blob/master/dbs/collection_example.csv):
+It's a CSV file, using semi-colons as separators:
+
+    malware_family;sample_metadata;0;0;compressed_apivector
                         
 
 ## Service Configuration
@@ -42,17 +54,23 @@ The following service configuration options are available (from the web: avatar 
     # The apiscout DBs to download and use. There should be one for each VM you have generating process memory dumps
     "apiscout_dbs": [],
 
-    # path to apivector DBs to compare against on the support server
+    # Default apiscout DB. If this value is set, then we will apply this to anything with the windows/executable/* tag type
+    # Otherwise we will only process files that have 'vm_name' set in submission tag or submission metadata
+    "default_db": "",
+
+    # path to apivector lists to compare against on the support server
     "apivector_lists_remote_path": "apivector_lists",
 
-    # The apivector DBs to retrieve from the support server
-    "apivector_lists": [],
+    # The apivector lists to retrieve from the support server.
+    # This is formatted as a dictionary so that you can add extra metadata about any custom/classified lists
+    # ie/ {"custom_list.csv": {"classification": "RESTRICTED"}}
+    "apivector_lists": {},
 
     # Parameters for matching apivector
     # minimum confidence in the apivector to do anything with it
     "min_confidence": 50,
     # min jaccard score to report as implant family
-    # from https://journal.cecyf.fr/ojs/index.php/cybin/article/view/2 , you can set this depending on your 
+    # from https://journal.cecyf.fr/ojs/index.php/cybin/article/view/2 , you can set this depending on your
     # tolerance for false positives.
     # Even if set very high, FPs are still possible for samples that share a lot of statically linked code
     # * 0.18 leads to a TPR/FPR of 90.18% and 9.45%
