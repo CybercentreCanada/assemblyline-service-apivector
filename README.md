@@ -29,6 +29,7 @@ It's a CSV file, using semi-colons as separators:
 ## Service Configuration
 
 The following service configuration options are available:
+
     # Parameters for matching apivector
     # minimum confidence in the apivector match to do anything with it
     "min_confidence": 50,
