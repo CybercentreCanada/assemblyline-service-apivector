@@ -10,6 +10,6 @@ Thumbs.db
 
 \.vscode/
 
-*.malpedia_apivector_list.csv
+*malpedia_apivector_list.csv
 
 malpediaclient/config\.py

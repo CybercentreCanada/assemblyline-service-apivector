@@ -1,0 +1,49 @@
+name: APIVector
+version: $SERVICE_TAG
+description: >-
+  This service extracts library imports from windows PE files or memory dump to generate api vector classification.
+
+accepts: executable/windows
+rejects: empty|metadata/.*
+
+stage: CORE
+category: Static Analysis
+
+file_required: true
+timeout: 60
+disable_cache: false
+
+enabled: true
+is_external: false
+licence_count: 0
+
+config:
+  min_confidence: 50
+  min_jaccard: 0.40
+
+docker_config:
+  image: ${REGISTRY}cccs/assemblyline-service-apivector:$SERVICE_TAG
+  cpu_cores: 1
+  ram_mb: 512
+
+dependencies:
+  updates:
+    container:
+      allow_internet_access: true
+      command: ["python", "-m", "api_vector.updater"]
+      image: ${REGISTRY}cccs/assemblyline-service-apivector:$SERVICE_TAG
+      ports: ["5003"]
+      environment:
+        - name: MALPEDIA_APIKEY
+          value: "<REPLACE_ME>"
+    run_as_core: True
+
+update_config:
+  generates_signatures: true
+  sources:
+    - name: malpedia
+      headers:
+        - name: Authorization
+          value: "apikey ${MALPEDIA_APIKEY}"
+      uri: https://malpedia.caad.fkie.fraunhofer.de/api/list/apiscout/csv
+  update_interval_seconds: 86400
