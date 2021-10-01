@@ -1,3 +1,6 @@
 apiscout
 lief
 requests
+gunicorn
+flask
+gitpython

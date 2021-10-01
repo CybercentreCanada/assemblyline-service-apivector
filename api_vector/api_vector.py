@@ -68,7 +68,7 @@ class API_VECTOR(ServiceBase):
                 shutil.rmtree(temp_directory, ignore_errors=True)
 
         temp_collection_filepaths = [
-            (os.basename(f), str(f)) for f in Path(self.rules_directory).rglob("*") if os.path.isfile(str(f))
+            (os.path.basename(f), str(f)) for f in Path(self.rules_directory).rglob("*") if os.path.isfile(str(f))
         ]
 
         temp_list = {}
@@ -90,7 +90,8 @@ class API_VECTOR(ServiceBase):
         self.apiQR = ApiQR(winapi_file)
 
         self.min_confidence = self.config.get("min_confidence", 50)
-        self.min_jaccard = self.config.get("min_jaccard", 0.40)
+        self.min_jaccard_info = self.config.get("min_jaccard_info", 0.40)
+        self.min_jaccard_tag = self.config.get("min_jaccard_tag", 0.80)
 
         self._update_datasources()
 
@@ -111,19 +112,20 @@ class API_VECTOR(ServiceBase):
         res = self.apivector.getApiVectorFromApiList(import_list)
         res["vector_confidence"] = self.apivector.getVectorConfidence(res["user_list"]["vector"])
 
-        temp_path = os.path.join(self.working_directory, "api_vector.json")
+        temp_path = os.path.join(self.working_directory, "apivector.json")
         with open(temp_path, "w") as f:
             f.write(json.dumps(res))
-        request.add_supplementary(temp_path, "api_vector.json", "ApiScout result as a JSON file")
+        request.add_supplementary(temp_path, "apivector.json", "ApiScout result as a JSON file")
 
         vector = res["user_list"]["vector"]
         self.apiQR.setVector(vector)
-        temp_path = os.path.join(self.working_directory, "api_vector_qr.png")
+        temp_path = os.path.join(self.working_directory, "apivector_qr.png")
         self.apiQR.exportPng(temp_path)
-        request.add_supplementary(temp_path, "api_vector_qr.png", "QR-like representation of the APIVector, as a PNG")
+        request.add_supplementary(temp_path, "apivector_qr.png", "QR-like representation of the APIVector, as a PNG")
 
-        r_section = ResultSection(title_text="ApiVector Collection Information")
+        r_section = ResultSection(title_text="ApiVector Information")
         r_section.add_line(f"Vector: {vector}")
+        r_section.add_tag("vector", vector)
 
         for collection_name, collection_metadata in self.collection_filepaths.items():
             matches = self.apivector.matchVectorCollection(vector, collection_metadata["path"])
@@ -133,11 +135,12 @@ class API_VECTOR(ServiceBase):
                     classification=collection_metadata["classification"],
                 )
                 c_section.add_line(f"Confidence: {matches['confidence']}")
-                # Get the top-10 matches over the minimum threshold
-                matches_str_list = [
-                    f"{result[0]} ({result[2]})" for result in matches["match_results"] if result[2] > self.min_jaccard
-                ][:10]
-                c_section.add_lines(matches_str_list)
+                for result in matches["match_results"]:
+                    if result[2] > self.min_jaccard_info:
+                        c_section.add_line(f"{result[0]} ({result[2]})")
+                    if result[2] > self.min_jaccard_tag:
+                        c_section.add_tag("attribution.family", f"apivector_{result[0]}")
+
                 r_section.add_subsection(c_section)
 
         self.file_res.add_section(r_section)

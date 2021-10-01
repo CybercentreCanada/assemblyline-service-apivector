@@ -19,7 +19,8 @@ licence_count: 0
 
 config:
   min_confidence: 50
-  min_jaccard: 0.40
+  min_jaccard_info: 0.40
+  min_jaccard_tag: 0.80
 
 docker_config:
   image: ${REGISTRY}cccs/assemblyline-service-apivector:$SERVICE_TAG
@@ -44,6 +45,6 @@ update_config:
     - name: malpedia
       headers:
         - name: Authorization
-          value: "apikey ${MALPEDIA_APIKEY}"
+          value: "apitoken ${MALPEDIA_APIKEY}"
       uri: https://malpedia.caad.fkie.fraunhofer.de/api/list/apiscout/csv
   update_interval_seconds: 86400

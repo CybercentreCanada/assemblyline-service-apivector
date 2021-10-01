@@ -76,9 +76,9 @@ class APIVectorUpdateServer(ServiceUpdater):
 
                 # Replace source headers' environment variables
                 if "headers" in source:
-                    new_headers = []
+                    new_headers = {}
                     for header in source["headers"]:
-                        new_headers.append({"name": header["name"], "value": os.path.expandvars(header["value"])})
+                        new_headers[header["name"]] = os.path.expandvars(header["value"])
                     source["headers"] = new_headers
 
                 try:
