@@ -1,24 +1,14 @@
 import json
 import os
 import re
-import shutil
-import tarfile
-import tempfile
-import time
-from pathlib import Path
 
 import lief
-import requests
 from apiscout import ApiVector
 from apiscout.ApiQR import ApiQR
 from assemblyline.common import forge
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
 from assemblyline_v4_service.common.result import Result, ResultSection
-
-UPDATES_HOST = os.environ.get("updates_host")
-UPDATES_PORT = os.environ.get("updates_port")
-UPDATES_KEY = os.environ.get("updates_key")
 
 classification = forge.get_classification()
 
@@ -28,53 +18,12 @@ class API_VECTOR(ServiceBase):
         super(API_VECTOR, self).__init__(config)
         self.collection_filepaths = {}
 
-        # Updater-related
-        self.rules_directory = None
-        self.update_time = None
-
-    def _update_datasources(self):
-        url_base = f"http://{UPDATES_HOST}:{UPDATES_PORT}"
-        headers = {"X_APIKEY": UPDATES_KEY}
-
-        # Check if there are new
-        while True:
-            resp = requests.get(f"{url_base}/status")
-            resp.raise_for_status()
-            status = resp.json()
-            if self.update_time is not None and self.update_time >= status["local_update_time"]:
-                return False
-            if status["download_available"]:
-                break
-            self.log.warning("Waiting on update server availability...")
-            time.sleep(10)
-
-        # Download the current update
-        temp_directory = tempfile.mkdtemp()
-        buffer_handle, buffer_name = tempfile.mkstemp()
-        try:
-            with os.fdopen(buffer_handle, "wb") as buffer:
-                resp = requests.get(f"{url_base}/tar", headers=headers)
-                resp.raise_for_status()
-                for chunk in resp.iter_content(chunk_size=1024):
-                    buffer.write(chunk)
-
-            tar_handle = tarfile.open(buffer_name)
-            tar_handle.extractall(temp_directory)
-            self.update_time = status["local_update_time"]
-            self.rules_directory, temp_directory = temp_directory, self.rules_directory
-        finally:
-            os.unlink(buffer_name)
-            if temp_directory is not None:
-                shutil.rmtree(temp_directory, ignore_errors=True)
-
-        temp_collection_filepaths = [
-            (os.path.basename(f), str(f)) for f in Path(self.rules_directory).rglob("*") if os.path.isfile(str(f))
-        ]
-
+    def _load_rules(self) -> None:
         temp_list = {}
         for source_obj in self.service_attributes.update_config.sources:
             source = source_obj.as_primitives()
-            for signature_file, signature_path in temp_collection_filepaths:
+            for signature_path in self.rules_list:
+                signature_file = os.path.basename(signature_path)
                 if signature_file == source["name"]:
                     temp_list[signature_file] = {
                         "path": signature_path,
@@ -90,10 +39,8 @@ class API_VECTOR(ServiceBase):
         self.apiQR = ApiQR(winapi_file)
 
         self.min_confidence = self.config.get("min_confidence", 50)
-        self.min_jaccard_info = self.config.get("min_jaccard_info", 0.40)
-        self.min_jaccard_tag = self.config.get("min_jaccard_tag", 0.80)
-
-        self._update_datasources()
+        self.min_jaccard_info = self.config.get("min_jaccard_info", 40) / 100
+        self.min_jaccard_tag = self.config.get("min_jaccard_tag", 80) / 100
 
     def execute(self, request: ServiceRequest):
         request.result = Result()
@@ -125,7 +72,7 @@ class API_VECTOR(ServiceBase):
 
         r_section = ResultSection(title_text="ApiVector Information")
         r_section.add_line(f"Vector: {vector}")
-        r_section.add_tag("vector", vector)
+        r_section.add_tag("vector", f"apivector_{vector}")
 
         for collection_name, collection_metadata in self.collection_filepaths.items():
             matches = self.apivector.matchVectorCollection(vector, collection_metadata["path"])
@@ -144,7 +91,3 @@ class API_VECTOR(ServiceBase):
                 r_section.add_subsection(c_section)
 
         self.file_res.add_section(r_section)
-
-    def _cleanup(self) -> None:
-        super()._cleanup()
-        self._update_datasources()
