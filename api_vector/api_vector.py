@@ -3,6 +3,7 @@ import os
 import re
 
 import lief
+import ordlookup
 from apiscout import ApiVector
 from apiscout.ApiQR import ApiQR
 from assemblyline.common import forge
@@ -53,8 +54,13 @@ class API_VECTOR(ServiceBase):
         import_list = set()
         for library in self.pe.imports:
             library_name = library.name[:-4].lower() if library.name.endswith(".dll") else library.name.lower()
-            for function in library.entries:
-                import_list.add(f"{library_name}!{function.name.rstrip('AW').lower()}")
+            for entry in library.entries:
+                if entry.is_ordinal:
+                    import_name = ordlookup.ordLookup(str.encode(library.name), entry.ordinal, make_name=False)
+                    entry_name = str(entry.ordinal) if import_name is None else import_name.decode()
+                    import_list.add(f"{library_name}!{entry_name.rstrip('AW').lower()}")
+                else:
+                    import_list.add(f"{library_name}!{entry.name.rstrip('AW').lower()}")
         import_list = [re.sub("msvcrt[0-9]+!", "msvcrt!", x) for x in import_list]
         res = self.apivector.getApiVectorFromApiList(import_list)
         res["vector_confidence"] = self.apivector.getVectorConfidence(res["user_list"]["vector"])
