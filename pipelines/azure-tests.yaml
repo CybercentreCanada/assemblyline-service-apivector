@@ -1,0 +1,48 @@
+name: tests
+
+trigger: ["*"]
+pr: ["*"]
+
+pool:
+  vmImage: "ubuntu-20.04"
+
+jobs:
+  - job: run_test
+    strategy:
+      matrix:
+        python3_7:
+          python.version: "3.7"
+        Python3_8:
+          python.version: "3.8"
+        Python3_9:
+          python.version: "3.9"
+
+    timeoutInMinutes: 10
+
+    steps:
+      - task: UsePythonVersion@0
+        displayName: Set python version
+        inputs:
+          versionSpec: "$(python.version)"
+      - script: |
+          [ ! -d "$(pwd)/tests" ] && echo "No tests found" && exit
+          sudo apt-get update
+          sudo apt-get install -y libfuzzy-dev libfuzzy2
+          if [ -f $(pwd)/pkglist.txt ]; then
+            sudo apt-get install -y < $(pwd)/pkglist.txt
+          fi
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo env "PATH=$PATH" python -m pip install -U --no-cache-dir assemblyline assemblyline_v4_service
+          [ -f $(pwd)/requirements.txt ] && sudo env "PATH=$PATH" python -m pip install -U --no-cache-dir -r $(pwd)/requirements.txt
+          [ -f $(pwd)/tests/requirements.txt ] && sudo env "PATH=$PATH" python -m pip install -U --no-cache-dir -r $(pwd)/tests/requirements.txt
+          sudo rm -rf /tmp/* /var/lib/apt/lists/* ~/.cache/pip
+        displayName: Setup environment
+      - script: |
+          [ ! -d "$(pwd)/tests" ] && echo "No tests found" && exit
+          export REPO_NAME=${BUILD_REPOSITORY_NAME##*/}
+          python -m pytest -p no:cacheprovider --durations=10 -rsx -vv --cov-report=xml --cov=${REPO_NAME/assemblyline-service-/}
+        displayName: Test
+      - script: |
+          [ ! -d "$(pwd)/tests" ] && echo "No tests found" && exit
+          python -m codecov
+        displayName: Upload Coverage

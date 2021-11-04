@@ -22,9 +22,14 @@ stages:
               command: login
               containerRegistry: dockerhub
           - script: |
-              set -xv  # Echo commands before they are run
               export TAG=${BUILD_SOURCEBRANCH#"refs/tags/v"}
               if [[ "$TAG" == *stable* ]]; then export BUILD_TYPE=stable; else export BUILD_TYPE=latest; fi
-              docker build --build-arg version=$TAG --build-arg branch=$BUILD_TYPE -t cccs/assemblyline-service-apivector:$TAG -t cccs/assemblyline-service-apivector:$BUILD_TYPE .
-              docker push cccs/assemblyline-service-apivector --all-tags
+              docker build --build-arg version=$TAG --build-arg branch=$BUILD_TYPE -t cccs/${BUILD_REPOSITORY_NAME##*/}:$TAG -t cccs/${BUILD_REPOSITORY_NAME##*/}:$BUILD_TYPE -f ./Dockerfile .
+            displayName: Build containers
+          - script: |
+              [ ! -d "$(pwd)/tests" ] && echo "No tests found" && exit
+              [ -f "$(pwd)/tests/requirements.txt" ] && docker run -v $(pwd)/tests/:/opt/al_service/tests/ cccs/${BUILD_REPOSITORY_NAME##*/}:latest bash -c 'pip install -U -r tests/requirements.txt; pytest -p no:cacheprovider' && exit
+              docker run -v $(pwd)/tests/:/opt/al_service/tests/ cccs/${BUILD_REPOSITORY_NAME##*/}:latest bash -c 'pytest -p no:cacheprovider'
+            displayName: Test containers
+          - script: docker push cccs/${BUILD_REPOSITORY_NAME##*/} --all-tags
             displayName: Deploy to Docker Hub

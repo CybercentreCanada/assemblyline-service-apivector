@@ -9,7 +9,11 @@ from apiscout.ApiQR import ApiQR
 from assemblyline.common import forge
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
-from assemblyline_v4_service.common.result import Result, ResultSection
+from assemblyline_v4_service.common.result import (
+    Result,
+    ResultImageSection,
+    ResultSection,
+)
 
 classification = forge.get_classification()
 
@@ -74,7 +78,9 @@ class API_VECTOR(ServiceBase):
         self.apiQR.setVector(vector)
         temp_path = os.path.join(self.working_directory, "apivector_qr.png")
         self.apiQR.exportPng(temp_path)
-        request.add_supplementary(temp_path, "apivector_qr.png", "QR-like representation of the APIVector, as a PNG")
+        image_section = ResultImageSection(self.request, "APIVector QR-like")
+        image_section.add_image(temp_path, "apivector_qr.png", "QR-like representation of the APIVector")
+        self.file_res.add_section(image_section)
 
         r_section = ResultSection(title_text="ApiVector Information")
         r_section.add_line(f"Vector: {vector}")
