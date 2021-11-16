@@ -55,6 +55,9 @@ class API_VECTOR(ServiceBase):
 
         self.pe = lief.parse(self.path)
 
+        if self.pe is None:
+            return
+
         import_list = set()
         for library in self.pe.imports:
             library_name = library.name[:-4].lower() if library.name.endswith(".dll") else library.name.lower()
