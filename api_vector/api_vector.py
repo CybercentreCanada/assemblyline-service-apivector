@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from pathlib import Path
 
 import lief
 import ordlookup
@@ -22,18 +23,22 @@ class API_VECTOR(ServiceBase):
     def __init__(self, config=None):
         super(API_VECTOR, self).__init__(config)
         self.collection_filepaths = {}
+        self.sources_classifications = {}
+        for source_obj in self.service_attributes.update_config.sources:
+            source = source_obj.as_primitives()
+            self.sources_classifications[source["name"]] = source.get(
+                "default_classification", classification.UNRESTRICTED
+            )
 
     def _load_rules(self) -> None:
         temp_list = {}
-        for source_obj in self.service_attributes.update_config.sources:
-            source = source_obj.as_primitives()
-            for signature_path in self.rules_list:
-                signature_file = os.path.basename(signature_path)
-                if signature_file == source["name"]:
-                    temp_list[signature_file] = {
-                        "path": signature_path,
-                        "classification": source.get("default_classification", classification.UNRESTRICTED),
-                    }
+        for signature_path in self.rules_list:
+            source = Path(signature_path).name
+            default_classification = self.sources_classifications[source]
+            temp_list[source] = {
+                "path": signature_path,
+                "classification": default_classification,
+            }
         self.log.info(f"Will load the following files: {temp_list}")
         self.collection_filepaths = temp_list
 

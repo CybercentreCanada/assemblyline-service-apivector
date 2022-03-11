@@ -37,7 +37,7 @@ dependencies:
     run_as_core: True
 
 update_config:
-  generates_signatures: true
+  generates_signatures: false
   sources:
     - name: malpedia
       headers:
