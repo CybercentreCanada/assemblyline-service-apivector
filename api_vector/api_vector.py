@@ -115,7 +115,7 @@ class API_VECTOR(ServiceBase):
                             match_section = OrderedKVSectionBody()
                         match_section.add_item(result[0], result[2])
                     if result[2] > self.min_jaccard_tag:
-                        c_section.add_tag("attribution.family", f"apivector_{result[0]}")
+                        c_section.add_tag("attribution.family", result[0])
                 if match_section is not None:
                     c_section.add_section_part(match_section)
 
