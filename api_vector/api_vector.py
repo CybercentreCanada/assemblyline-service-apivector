@@ -22,7 +22,7 @@ classification = forge.get_classification()
 
 class API_VECTOR(ServiceBase):
     def __init__(self, config=None):
-        super(API_VECTOR, self).__init__(config)
+        super().__init__(config)
         self.collection_filepaths = {}
         self.sources_classifications = {}
         for source_obj in self.service_attributes.update_config.sources:
@@ -80,7 +80,7 @@ class API_VECTOR(ServiceBase):
 
         temp_path = os.path.join(self.working_directory, "apivector.json")
         with open(temp_path, "w") as f:
-            f.write(json.dumps(res))
+            json.dump(res, f)
         request.add_supplementary(temp_path, "apivector.json", "ApiScout result as a JSON file")
 
         vector = res["user_list"]["vector"]
