@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import warnings
+
 from pathlib import Path
 
 import lief
@@ -16,6 +18,11 @@ from assemblyline_v4_service.common.result import (
     Result,
     ResultMultiSection,
 )
+
+# Disable logging from outside the AL logger
+warnings.simplefilter("ignore")
+ApiVector.LOG.disabled = True
+lief.logging.disable()
 
 classification = forge.get_classification()
 
