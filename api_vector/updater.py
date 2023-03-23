@@ -14,7 +14,7 @@ class APIVectorUpdateServer(ServiceUpdater):
 
     def import_update(self, files_sha256: str, al_client: Client4, source: str, default_classification: str = None):
         assert len(files_sha256) == 1
-        shutil.move(files_sha256[0][0], os.path.join(self.latest_updates_dir, source))
+        shutil.move(files_sha256[0][0], os.path.join(self.latest_updates_dir, source.lstrip("/")))
 
 
 if __name__ == "__main__":
