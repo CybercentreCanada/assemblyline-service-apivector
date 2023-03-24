@@ -44,4 +44,5 @@ update_config:
         - name: Authorization
           value: "apitoken <REPLACE_ME>"
       uri: https://malpedia.caad.fkie.fraunhofer.de/api/list/apiscout/csv
+      pattern: .*csv
   update_interval_seconds: 86400
