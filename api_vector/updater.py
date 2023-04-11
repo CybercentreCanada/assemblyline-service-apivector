@@ -18,5 +18,5 @@ class APIVectorUpdateServer(ServiceUpdater):
 
 
 if __name__ == "__main__":
-    with APIVectorUpdateServer(default_pattern="*.csv") as server:
+    with APIVectorUpdateServer(default_pattern=".*\.csv") as server:
         server.serve_forever()
