@@ -8,8 +8,6 @@ dist
 ehthumbs.db
 Thumbs.db
 
-\.vscode/
-
 *malpedia_apivector_list.csv
 
 malpediaclient/config\.py
