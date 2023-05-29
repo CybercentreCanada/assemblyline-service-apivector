@@ -11,12 +11,7 @@ from apiscout.ApiQR import ApiQR
 from assemblyline.common import forge
 from assemblyline_v4_service.common.base import ServiceBase
 from assemblyline_v4_service.common.request import ServiceRequest
-from assemblyline_v4_service.common.result import (
-    ImageSectionBody,
-    OrderedKVSectionBody,
-    Result,
-    ResultMultiSection,
-)
+from assemblyline_v4_service.common.result import ImageSectionBody, OrderedKVSectionBody, Result, ResultMultiSection
 
 # Disable logging from outside the AL logger
 warnings.simplefilter("ignore")
