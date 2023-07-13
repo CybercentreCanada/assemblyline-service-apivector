@@ -25,21 +25,14 @@ class API_VECTOR(ServiceBase):
     def __init__(self, config=None):
         super().__init__(config)
         self.collection_filepaths = {}
-        self.sources_classifications = {}
-        for source_obj in self.service_attributes.update_config.sources:
-            source = source_obj.as_primitives()
-            self.sources_classifications[source["name"]] = source.get(
-                "default_classification", classification.UNRESTRICTED
-            )
 
     def _load_rules(self) -> None:
         temp_list = {}
         for signature_path in self.rules_list:
             source = Path(signature_path).name
-            default_classification = self.sources_classifications[source]
             temp_list[source] = {
                 "path": signature_path,
-                "classification": default_classification,
+                "classification": self.signatures_meta[source]['classification'],
             }
         self.log.info(f"Will load the following files: {temp_list}")
         self.collection_filepaths = temp_list
