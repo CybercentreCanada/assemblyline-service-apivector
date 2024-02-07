@@ -1,2 +1,2 @@
 apiscout
-lief
+lief==0.13.2
