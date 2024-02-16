@@ -16,6 +16,7 @@ disable_cache: false
 enabled: true
 is_external: false
 licence_count: 0
+privileged: true
 
 config:
   min_confidence: 50
@@ -34,6 +35,9 @@ dependencies:
       command: ["python", "-m", "api_vector.updater"]
       image: ${REGISTRY}cccs/assemblyline-service-apivector:$SERVICE_TAG
       ports: ["5003"]
+      environment:
+        - name: MAX_REQUESTS
+          value: 0
     run_as_core: True
 
 update_config:
