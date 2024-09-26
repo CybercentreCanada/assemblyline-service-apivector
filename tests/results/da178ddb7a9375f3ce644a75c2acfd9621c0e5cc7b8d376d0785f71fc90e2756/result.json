@@ -1,0 +1,84 @@
+{
+  "extra": {
+    "drop_file": false,
+    "score": 0,
+    "sections": [
+      {
+        "auto_collapse": false,
+        "body": [
+          [
+            "IMAGE",
+            [
+              {
+                "img": {
+                  "description": "QR-like representation of the APIVector",
+                  "name": "apivector_qr.png",
+                  "sha256": "5aedc36e31a0053727096bd727c0a5d96bfe64060e3d36d00d75bce807360103"
+                },
+                "thumb": {
+                  "description": "QR-like representation of the APIVector (thumbnail)",
+                  "name": "apivector_qr.png.thumb",
+                  "sha256": "d348f82f6d6e26478ed4d1a92f1e06eaeaeade1c5622741b7f64be6c70155ffe"
+                }
+              }
+            ],
+            {}
+          ],
+          [
+            "ORDERED_KEY_VALUE",
+            [
+              [
+                "Vector",
+                "A99CA3QA5EQA4@AIA3gABEIA13KA5QgCBSAECMAIIoekXLDhxihQ]l+"
+              ]
+            ],
+            {}
+          ]
+        ],
+        "body_config": {},
+        "body_format": "MULTI",
+        "classification": "TLP:C",
+        "depth": 0,
+        "heuristic": null,
+        "promote_to": null,
+        "tags": {
+          "vector": [
+            "apivector_A99CA3QA5EQA4@AIA3gABEIA13KA5QgCBSAECMAIIoekXLDhxihQ]l+"
+          ]
+        },
+        "title_text": "ApiVector Information",
+        "zeroize_on_tag_safe": false
+      }
+    ]
+  },
+  "files": {
+    "extracted": [],
+    "supplementary": [
+      {
+        "name": "apivector.json",
+        "sha256": "25acb6d74a1503f4a172008c764a22631ca4dfc7b99cdd11ae1990a0923b341c"
+      },
+      {
+        "name": "apivector_qr.png",
+        "sha256": "5aedc36e31a0053727096bd727c0a5d96bfe64060e3d36d00d75bce807360103"
+      },
+      {
+        "name": "apivector_qr.png.thumb",
+        "sha256": "d348f82f6d6e26478ed4d1a92f1e06eaeaeade1c5622741b7f64be6c70155ffe"
+      }
+    ]
+  },
+  "results": {
+    "heuristics": [],
+    "tags": {
+      "vector": [
+        {
+          "heur_id": null,
+          "signatures": [],
+          "value": "apivector_A99CA3QA5EQA4@AIA3gABEIA13KA5QgCBSAECMAIIoekXLDhxihQ]l+"
+        }
+      ]
+    },
+    "temp_submission_data": {}
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "template": "git@github.com:CybercentreCanada/assemblyline-service-template.git",
+  "commit": "3a814ab822dc6f42558cb3727a2857afdcb50b2f",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "service_name": "apivector",
+      "__svc_name": "apivector",
+      "__repository": "assemblyline-service-apivector",
+      "__pkg_name": "apivector",
+      "__class_name": "Apivector",
+      "short_description": "This service extracts library imports from windows PE files or memory dump to generate api vector classification.",
+      "short_description_fr": "Ce service extrait les importations de libraries des executables Windows ou des fichiers mémoire pour générer une classification vectorielle des api.",
+      "stage": "CORE",
+      "category": "Static Analysis",
+      "org_name_full": "CybercentreCanada",
+      "org_name_short": "cccs",
+      "license": "mit",
+      "_template": "git@github.com:CybercentreCanada/assemblyline-service-template.git"
+    }
+  },
+  "directory": null
+}
