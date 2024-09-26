@@ -21,7 +21,7 @@ lief.logging.disable()
 classification = forge.get_classification()
 
 
-class API_VECTOR(ServiceBase):
+class APIVector(ServiceBase):
     def __init__(self, config=None):
         super().__init__(config)
         self.collection_filepaths = {}
@@ -32,13 +32,12 @@ class API_VECTOR(ServiceBase):
             source = Path(signature_path).name
             temp_list[source] = {
                 "path": signature_path,
-                "classification": self.signatures_meta[source]['classification'],
+                "classification": self.signatures_meta[source]["classification"],
             }
         self.log.info(f"Will load the following files: {temp_list}")
         self.collection_filepaths = temp_list
 
     def start(self):
-        self.log.info("Starting API_VECTOR")
         winapi_file = os.path.join(os.path.dirname(__file__), "winapi1024v1.txt")
         self.apivector = ApiVector.ApiVector(winapi_file)
         self.apiQR = ApiQR(winapi_file)
