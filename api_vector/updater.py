@@ -12,7 +12,7 @@ class APIVectorUpdateServer(ServiceUpdater):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def import_update(self, files_sha256: str, source: str, default_classification: str = None):
+    def import_update(self, files_sha256: str, source: str, *args, **kwargs):
         if len(files_sha256) != 1:
             # No file were found in the latest source update
             source_config: UpdateSource = [x for x in self._service.update_config.sources if x["name"] == source][0]
