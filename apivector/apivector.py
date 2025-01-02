@@ -5,7 +5,7 @@ import warnings
 from pathlib import Path
 
 import lief
-import ordlookup
+from apivector import ordlookup
 from apiscout import ApiVector
 from apiscout.ApiQR import ApiQR
 from assemblyline.common import forge
@@ -21,7 +21,7 @@ lief.logging.disable()
 classification = forge.get_classification()
 
 
-class API_VECTOR(ServiceBase):
+class APIVector(ServiceBase):
     def __init__(self, config=None):
         super().__init__(config)
         self.collection_filepaths = {}
@@ -38,7 +38,7 @@ class API_VECTOR(ServiceBase):
         self.collection_filepaths = temp_list
 
     def start(self):
-        self.log.info("Starting API_VECTOR")
+        self.log.info("Starting APIVector")
         winapi_file = os.path.join(os.path.dirname(__file__), "winapi1024v1.txt")
         self.apivector = ApiVector.ApiVector(winapi_file)
         self.apiQR = ApiQR(winapi_file)
