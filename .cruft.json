@@ -10,7 +10,7 @@
       "__pkg_name": "apivector",
       "class_name": "APIVector",
       "short_description": "This service extracts library imports from windows PE files or memory dump to generate api vector classification.",
-      "short_description_fr": "Ce service extrait les importations de bibliothèques des fichiers PE de Windows ou des vidages de mémoire pour générer une classification vectorielle des api.",
+      "short_description_fr": "Ce service extrait les librairie importées des executables Windows ou des vidages de mémoire pour générer une classification vectorielle des api.",
       "stage": "CORE",
       "category": "Static Analysis",
       "org_name_full": "CybercentreCanada",

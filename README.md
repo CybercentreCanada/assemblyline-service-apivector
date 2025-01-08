@@ -85,7 +85,7 @@ General Assemblyline documentation can be found at: https://cybercentrecanada.gi
 
 # Service APIVector
 
-Ce service extrait les importations de bibliothèques des fichiers PE de Windows ou des vidages de mémoire pour générer une classification vectorielle des api.
+Ce service extrait les librairie importées des executables Windows ou des vidages de mémoire pour générer une classification vectorielle des api.
 
 ## Détails du service
 
