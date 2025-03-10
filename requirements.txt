@@ -1,2 +1,4 @@
+assemblyline
+assemblyline-v4-service
 apiscout
 lief==0.13.2
