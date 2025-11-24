@@ -1,0 +1,84 @@
+{
+  "extra": {
+    "drop_file": false,
+    "score": 0,
+    "sections": [
+      {
+        "auto_collapse": false,
+        "body": [
+          [
+            "IMAGE",
+            [
+              {
+                "img": {
+                  "description": "QR-like representation of the APIVector",
+                  "name": "apivector_qr.png",
+                  "sha256": "13e4ca1391d9721e5a17319c59965696fd683c2d63e6870d2ce10ef94ff16217"
+                },
+                "thumb": {
+                  "description": "QR-like representation of the APIVector (thumbnail)",
+                  "name": "apivector_qr.png.thumb",
+                  "sha256": "f1e36567e92fa140615d06becb56e9300c118c36c7c0137e5408bd99e237bf3a"
+                }
+              }
+            ],
+            {}
+          ],
+          [
+            "ORDERED_KEY_VALUE",
+            [
+              [
+                "Vector",
+                "A11BA10gA43IA28EA41CA33"
+              ]
+            ],
+            {}
+          ]
+        ],
+        "body_config": {},
+        "body_format": "MULTI",
+        "classification": "TLP:C",
+        "depth": 0,
+        "heuristic": null,
+        "promote_to": null,
+        "tags": {
+          "vector": [
+            "apivector_A11BA10gA43IA28EA41CA33"
+          ]
+        },
+        "title_text": "ApiVector Information",
+        "zeroize_on_tag_safe": false
+      }
+    ]
+  },
+  "files": {
+    "extracted": [],
+    "supplementary": [
+      {
+        "name": "apivector_qr.png",
+        "sha256": "13e4ca1391d9721e5a17319c59965696fd683c2d63e6870d2ce10ef94ff16217"
+      },
+      {
+        "name": "apivector.json",
+        "sha256": "1d16dec08601e5d8e4ad1ba6b312c770cf5092076b0ca6fc43ee5787c57405af"
+      },
+      {
+        "name": "apivector_qr.png.thumb",
+        "sha256": "f1e36567e92fa140615d06becb56e9300c118c36c7c0137e5408bd99e237bf3a"
+      }
+    ]
+  },
+  "results": {
+    "heuristics": [],
+    "tags": {
+      "vector": [
+        {
+          "heur_id": null,
+          "signatures": [],
+          "value": "apivector_A11BA10gA43IA28EA41CA33"
+        }
+      ]
+    },
+    "temp_submission_data": {}
+  }
+}
