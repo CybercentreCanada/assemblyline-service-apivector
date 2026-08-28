@@ -41,7 +41,7 @@ dependencies:
       ports: ["5003"]
       environment:
         - name: MAX_REQUESTS
-          value: 0
+          value: "0"
     run_as_core: True
 
 update_config:
