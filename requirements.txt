@@ -1,5 +1,5 @@
 assemblyline
 assemblyline-v4-service
 apiscout
-Pillow==11.3.0
+Pillow==12.3.0
 lief==1.0.0
